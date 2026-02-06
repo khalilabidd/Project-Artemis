@@ -1,0 +1,3 @@
+pandas>=1.3.0
+pyarrow>=6.0.0
+pytest>=6.2.0  # optional, for running tests with pytest

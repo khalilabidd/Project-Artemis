@@ -1,113 +1,94 @@
-# Project Artemis - Parquet File Comparator
+# Project Artemis — Parquet/DataFrame Comparator
 
-A Python utility for comparing Parquet files to detect schema changes, value differences, and potential data regressions.
+Lightweight Python utility to compare two datasets (Pandas DataFrames or Parquet files) and surface schema changes, value differences, and potential regressions.
 
-## Overview
-
-This project provides a `ParquetComparator` class that compares two Parquet files and generates comprehensive reports on:
-- **Schema Changes**: Detects added/removed columns and type changes
-- **Value Changes**: Identifies rows with modified values and row count differences
-- **Regression Detection**: Flags potential data quality issues
+**Key points**
+- Primary comparator: `DFComparator` implemented in `compare_data.py`.
+- Includes a plain-Python test runner at `tests/run_tests.py` and pytest-compatible tests in `tests/test_compare_parquet.py`.
 
 ## Features
 
-✨ **Schema Comparison**
-- Detects newly added columns
-- Identifies removed columns
-- Reports data type changes for common columns
-
-📊 **Value Analysis**
-- Compares row counts between versions
-- Identifies which columns have value changes
-- Calculates percentage of affected rows
-
-⚠️ **Regression Detection**
-- Automatically detects potential regressions
-- Flags breaking changes (removed columns, type changes)
-- Alerts on data loss scenarios
-
-📈 **Formatted Reporting**
-- Human-readable console output
-- JSON export capability
-- Structured statistics for programmatic use
+- Schema diff: added / removed columns and dtype changes
+- Value diff: row count changes and per-column changed-row counts
+- Null-aware comparisons and support for duplicate primary-key values via a merge fallback
+- Human-readable console report via `print_report()` and programmatic `generate_statistics()` output
 
 ## Requirements
 
-- Python 3.7+
+- Python 3.8+
 - pandas
-- pyarrow
+- (optional) pyarrow for Parquet read/write
+- (optional) pytest for running tests with the pytest runner
 
-## Installation
+Install minimal dependencies:
 
-1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd Project-Artemis
+pip install pandas
+# install pyarrow if you need parquet IO
+pip install pyarrow
 ```
 
-2. Install dependencies:
+Install pytest (optional):
+
 ```bash
-pip install pandas pyarrow
+pip install pytest
 ```
 
 ## Usage
 
-### Basic Usage
+Compare two Parquet files (read them with pandas) or compare DataFrames directly.
+
+Example (Parquet files):
 
 ```python
-from compare_parquet import ParquetComparator
+import pandas as pd
+from compare_data import DFComparator
 
-# Initialize comparator with current and previous parquet files
-comparator = ParquetComparator(
-    current_file="data_current.parquet",
-    previous_file="data_previous.parquet"
-)
+df_prev = pd.read_parquet('data_previous.parquet')
+df_curr = pd.read_parquet('data_current.parquet')
 
-# Generate and print report
-stats = comparator.print_report()
-
-# Save report to JSON
-import json
-with open("comparison_report.json", "w") as f:
-    json.dump(stats, f, indent=2)
+comp = DFComparator(df_curr, df_prev, primary_keys=['id'])
+stats = comp.print_report()
 ```
 
-### Available Methods
+Example (construct DataFrames in code):
 
-- **`compare_schema()`**: Returns schema differences (added/removed columns, type changes)
-- **`compare_values()`**: Returns value differences (row count changes, columns with modifications)
-- **`generate_statistics()`**: Comprehensive statistics including regression detection
-- **`print_report()`**: Prints formatted report and returns statistics
+```python
+import pandas as pd
+from compare_data import DFComparator
 
-## Output Example
+prev = pd.DataFrame({'id':[1,2], 'val':[10,20]})
+curr = pd.DataFrame({'id':[1,2], 'val':[11,20], 'status':['active','active']})
 
-```
-============================================================
-PARQUET FILE COMPARISON REPORT
-============================================================
-
-📊 SCHEMA CHANGES:
-  Added columns: ['new_column']
-  Removed columns: []
-  Type changes: {'age': {'previous': 'int64', 'current': 'int32'}}
-
-📈 VALUE CHANGES:
-  Previous rows: 1000
-  Current rows: 1050
-  Row difference: 50
-
-  Columns with value changes:
-    - status: 15 rows (1.50%)
-
-✅ NO REGRESSION DETECTED
-  Potential regression: False
-============================================================
+comp = DFComparator(curr, prev, primary_keys=['id'])
+stats = comp.generate_statistics()
+print(stats)
 ```
 
-## Use Cases
+## Running tests
 
-- **Data Pipeline Monitoring**: Detect unexpected changes in production data
-- **Version Control**: Compare data versions before/after ETL processes
-- **Quality Assurance**: Identify data anomalies and regressions
-- **Schema Evolution**: Track schema changes over time
+Quick (no external test runner):
+
+```bash
+python tests/run_tests.py
+```
+
+With pytest (preferred for integrations):
+
+```bash
+pip install pytest
+python -m pytest -q
+```
+
+## Files of interest
+
+- `compare_data.py` — main comparator (`DFComparator` class)
+- `tests/run_tests.py` — plain-Python test runner for rapid checks
+- `tests/test_compare_parquet.py` — pytest-style tests (can be run with `pytest`)
+
+## Notes & Recommendations
+
+- `DFComparator` accepts DataFrames; reading Parquet is left to the caller so you can choose the engine (`pyarrow` or `fastparquet`).
+- Primary keys are optional; when provided the comparator will attempt index-based comparisons and fall back to a merge-based strategy for duplicate keys.
+- The comparator uses null-aware equality (NaN/None considered equal to NaN/None) and attempts to avoid false positives from dtype-only differences.
 
